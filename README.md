@@ -17,4 +17,4 @@ Where `<input>` is the filename of the binary program.
 
 Notes
 =====
- - Our software relies on the Python standard library
+Our software relies on the Python standard library
