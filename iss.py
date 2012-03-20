@@ -87,11 +87,15 @@ def main():
     if not os.path.isfile(infile):
         sys.exit("File does not exist: %s" % infile)
 
-    print "input: %s" % infile
-
     progfile = open(infile, 'rb')
+
+    # Storage Units
     memory = io.BytesIO()
     instrs = []
+    pc     = 0
+    regs   = [0] * 32
+    # pipeline registers to be added
+    # when pipelining is added
 
     # read memory in chunks of 16 bytes
     while progfile.tell() < CODE:
@@ -126,6 +130,9 @@ def main():
     hexdump(progfile)
 
     progfile.close()
+
+    # run simulator
+    # todo
 
 def hexdump(progfile):
     print "Hexdump:"
