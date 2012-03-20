@@ -17,6 +17,13 @@ from struct import pack, unpack
 
 # Constants
 CODE =  0x00001000
+ADD  =  0b000000
+ADDI =  0b001000
+BEQ  =  0b000100
+J    =  0b000010
+LW   =  0b100011
+SW   =  0b101011
+HLT  =  0b111111
 
 # Instructions
 class add:
@@ -55,6 +62,10 @@ class j:
     def __init__(self, instr):
         self.target = slicebin(instr, 25, 0)
 
+class hlt:
+    def __init__(self, instr):
+        pass
+
 
 def slicebin(i, high, low):
     mask = 2L**(high - low + 1) -1
@@ -80,12 +91,35 @@ def main():
 
     progfile = open(infile, 'rb')
     memory = io.BytesIO()
+    instrs = []
 
     # read memory in chunks of 16 bytes
     while progfile.tell() < CODE:
         memory.write(progfile.read(16))
 
     # read code
+    while True:
+        rawinstr = progfile.read(4)
+        if rawinstr == '':
+            break
+        instr = unpack("<I", rawinstr)[0]
+        op = slicebin(instr, 31, 26)
+        if   op == ADD:
+            instrs.append(add(instr))
+        elif op == ADDI:
+            instrs.append(addi(instr))
+        elif op == BEQ:
+            instrs.append(beq(instr))
+        elif op == J:
+            instrs.append(j(instr))
+        elif op == LW:
+            instrs.append(lw(instr))
+        elif op == SW:
+            instrs.append(sw(instr))
+        elif op == HLT:
+            instrs.append(hlt(instr))
+        else: # unrecognized instruction
+            instrs.append(None)
 
     # print hexdump
     # (will be removed later)
