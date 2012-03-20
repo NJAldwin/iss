@@ -12,7 +12,7 @@
 
 # For usage, see README.md
 
-import sys, os, binascii
+import sys, os, binascii, io
 from struct import pack, unpack
 
 # Constants
@@ -79,12 +79,13 @@ def main():
     print "input: %s" % infile
 
     progfile = open(infile, 'rb')
+    memory = io.BytesIO()
 
-    # read memory
-    # todo
+    # read memory in chunks of 16 bytes
+    while progfile.tell() < CODE:
+        memory.write(progfile.read(16))
 
     # read code
-    # todo
 
     # print hexdump
     # (will be removed later)
