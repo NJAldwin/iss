@@ -1,14 +1,14 @@
 #!/usr/bin/env python
 # coding=utf-8
 
-# Group:    XXX  
-# Version:  0.00  
+# Group:    Astronauts  
+# Version:  0.01  
 # Date:     2012-3-20  
 
 # Group Members
 # =============
 #  - Nick Aldwin <aldwin@ccs.neu.edu>
-#  - Eric Chin <???@css.neu.edu>
+#  - Eric Chin <chiner@css.neu.edu>
 
 # For usage, see README.md
 
@@ -68,6 +68,7 @@ class hlt:
 
 
 def slicebin(i, high, low):
+    """ Returns [high,low] bits of the binary number"""
     mask = 2L**(high - low + 1) -1
     return (i >> low) & mask
 
@@ -135,6 +136,7 @@ def main():
     # todo
 
 def hexdump(progfile):
+    """ Dump the file in hex format """
     print "Hexdump:"
     progfile.seek(0)
     while True:

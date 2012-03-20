@@ -1,11 +1,11 @@
-Group:    XXX  
-Version:  0.00  
+Group:    Astronauts  
+Version:  0.01  
 Date:     2012-3-20  
 
 Group Members
 =============
  - Nick Aldwin <aldwin@ccs.neu.edu>
- - Eric Chin <???@css.neu.edu>
+ - Eric Chin <chiner@css.neu.edu>
 
 Usage
 =====
