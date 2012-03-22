@@ -17,6 +17,7 @@ from struct import pack, unpack
 
 # Constants
 CODE =  0x00001000
+NOP  =  0
 ADD  =  0b000000
 ADDI =  0b001000
 BEQ  =  0b000100
@@ -109,7 +110,9 @@ def main():
             break
         instr = unpack("<I", rawinstr)[0]
         op = slicebin(instr, 31, 26)
-        if   op == ADD:
+        if   instr == NOP:
+            instrs.append(None)
+        elif op == ADD:
             instrs.append(add(instr))
         elif op == ADDI:
             instrs.append(addi(instr))
