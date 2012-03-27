@@ -68,6 +68,33 @@ class hlt:
         pass
 
 
+# Structures for pipeline stages
+
+class fetch_stage:
+    def __init__(self, instr):
+    	self.instr = instr;
+    	
+
+class decode_stage:
+    def __init__(self, instr):
+    	self.instr = instr;
+
+class execute_stage:
+    def __init__(self, instr):
+    	self.instr = instr;
+
+
+class memory_stage:
+    def __init__(self, instr):
+    	self.instr = instr;
+
+
+class writeback_stage:
+    def __init__(self, instr):
+    	self.instr = instr;
+
+
+
 def slicebin(i, high, low):
     """ Returns [high,low] bits of the binary number"""
     mask = 2L**(high - low + 1) -1
@@ -96,7 +123,14 @@ def main():
     instrs = []
     pc     = 0
     regs   = [0] * 32
-    # pipeline registers to be added
+    
+    # Pipeline Registers / Stages
+    WB  = writeback_stage(None)
+    MEM = memory_stage(None)
+    EX  = execute_stage(None)
+    ID  = decode_stage(None)
+    IF  = fetch_stage(None)
+
     # when pipelining is added
 
     # read memory in chunks of 16 bytes
