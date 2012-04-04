@@ -26,73 +26,59 @@ LW   =  0b100011
 SW   =  0b101011
 HLT  =  0b111111
 
+# Debug Info
+DEBUG = False
+
 # Instructions
-class add:
+class instruction(object):
     def __init__(self, instr):
         self.rs = slicebin(instr, 25, 21)
         self.rt = slicebin(instr, 20, 16)
         self.rd = slicebin(instr, 15, 11)
         self.shamt = slicebin(instr, 10, 6)
         self.funct = slicebin(instr, 5, 0)
-
-class addi:
-    def __init__(self, instr):
-        self.rs = slicebin(instr, 25, 21)
-        self.rt = slicebin(instr, 20, 16)
         self.imm = slicebin(instr, 15, 0)
-
-class beq:
-    def __init__(self, instr):
-        self.rs = slicebin(instr, 25, 21)
-        self.rt = slicebin(instr, 20, 16)
         self.addr = slicebin(instr, 15, 0)
-
-class lw:
-    def __init__(self, instr):
-        self.rs = slicebin(instr, 25, 21)
-        self.rt = slicebin(instr, 20, 16)
-        self.addr = slicebin(instr, 15, 0)
-
-class sw:
-    def __init__(self, instr):
-        self.rs = slicebin(instr, 25, 21)
-        self.rt = slicebin(instr, 20, 16)
-        self.addr = slicebin(instr, 15, 0)
-
-class j:
-    def __init__(self, instr):
         self.target = slicebin(instr, 25, 0)
-
-class hlt:
+        
+class add(instruction):
     def __init__(self, instr):
-        pass
+        super(add, self).__init__(instr)
 
-
-# Structures for pipeline stages
-
-class fetch_stage:
+class addi(instruction):
     def __init__(self, instr):
-    	self.instr = instr;
-    	
+        super(addi, self).__init__(instr)
 
-class decode_stage:
+class beq(instruction):
     def __init__(self, instr):
-    	self.instr = instr;
+        super(beq, self).__init__(instr)
 
-class execute_stage:
+class lw(instruction):
     def __init__(self, instr):
-    	self.instr = instr;
+        super(lw, self).__init__(instr)
 
-
-class memory_stage:
+class sw(instruction):
     def __init__(self, instr):
-    	self.instr = instr;
+        super(sw, self).__init__(instr)
 
-
-class writeback_stage:
+class j(instruction):
     def __init__(self, instr):
-    	self.instr = instr;
+        super(j, self).__init__(instr)
 
+class hlt(instruction):
+    def __init__(self, instr):
+        super(hlt, self).__init__(instr)
+
+class nop(instruction):
+    def __init__(self, instr):
+        super(nop, self).__init__(instr)
+
+# Structure for pipeline stages
+
+class pipeline_register:
+    def __init__(self, **kwds):
+        self.instr = nop(0) # all pipeline registers store an instruction
+    	self.__dict__.update(kwds)
 
 
 def slicebin(i, high, low):
@@ -125,13 +111,10 @@ def main():
     regs   = [0] * 32
     
     # Pipeline Registers / Stages
-    WB  = writeback_stage(None)
-    MEM = memory_stage(None)
-    EX  = execute_stage(None)
-    ID  = decode_stage(None)
-    IF  = fetch_stage(None)
-
-    # when pipelining is added
+    IF_ID = pipeline_register()
+    ID_EX = pipeline_register()
+    EX_MEM = pipeline_register()
+    MEM_WB = pipeline_register()
 
     # read memory in chunks of 16 bytes
     while progfile.tell() < CODE:
@@ -145,7 +128,7 @@ def main():
         instr = unpack("<I", rawinstr)[0]
         op = slicebin(instr, 31, 26)
         if   instr == NOP:
-            instrs.append(None)
+            instrs.append(nop(instr))
         elif op == ADD:
             instrs.append(add(instr))
         elif op == ADDI:
@@ -161,16 +144,105 @@ def main():
         elif op == HLT:
             instrs.append(hlt(instr))
         else: # unrecognized instruction
-            instrs.append(None)
+            instrs.append(nop(instr))
 
     # print hexdump
     # (will be removed later)
-    hexdump(progfile)
+    #hexdump(progfile)
 
     progfile.close()
 
     # run simulator
-    # todo
+    while True:
+        # ----IF
+        if isinstance(EX_MEM.instr, beq) and EX_MEM.cond == True:
+            print "branching to %s" % EX_MEM.aluout
+            pc = EX_MEM.aluout
+        elif isinstance(EX_MEM.instr, j) and EX_MEM.jmp == True:
+            print "jumping to %s" % EX_MEM.jmpaddr
+            pc = EX_MEM.jmpaddr
+        else:
+            pc = pc + 1
+        instr = instrs[pc]
+        #print "load %s" % instr.__class__.__name__
+        IF_ID.instr = instr
+        IF_ID.npc = pc + 1
+        # ----ID
+        instr = IF_ID.instr
+        ID_EX.instr = instr
+        ID_EX.npc = IF_ID.npc
+        ID_EX.a = regs[instr.rs]
+        ID_EX.b = regs[instr.rt]
+        ID_EX.imm = instr.imm # todo: sign extend?
+        # ----EX
+        instr = ID_EX.instr
+        if   isinstance(instr, add):
+            EX_MEM.aluout = ID_EX.a + ID_EX.b
+        elif isinstance(instr, addi):
+            EX_MEM.aluout = ID_EX.a + ID_EX.imm
+        elif isinstance(instr, beq):
+            print "BRANCH! %s if %s=%s" % (ID_EX.imm, ID_EX.a, ID_EX.b)
+            EX_MEM.aluout = ID_EX.npc + ID_EX.imm
+            EX_MEM.cond = (ID_EX.a == ID_EX.b)
+        elif isinstance(instr, j):
+            naddr = instr.target - (CODE >> 2)
+            # todo: are we using the right PC here?
+            # todo: is this the right place in the pipeline for a jump?
+            naddr = (pc & 0xf0000000) | naddr
+            print "JUMP! %s" % hex(naddr)
+            # todo: is this the right way to jump?
+            EX_MEM.jmp = True
+            EX_MEM.jmpaddr = naddr
+        elif isinstance(instr is lw or instr, sw):
+            EX_MEM.aluout = ID_EX.a + ID_EX.imm
+            EX_MEM.b = ID_EX.b
+        elif isinstance(instr, hlt):
+            pass # todo: halt here?
+        else:
+            pass
+            
+        EX_MEM.instr = instr
+        # ----MEM
+        instr = EX_MEM.instr
+        if   isinstance(instr, lw):
+            memory.seek(EX_MEM.aluout)
+            # todo: make sure the below code actually reads 4 bytes
+            print "load at %s" % hex(EX_MEM.aluout)
+            rd = memory.read(4)
+            MEM_WB.lmd = unpack("<I", rd)[0]
+        elif isinstance(instr, sw):
+            memory.seek(EX_MEM.aluout)
+            print "write %s at %s" % (EX_MEM.b, hex(EX_MEM.aluout))
+            # todo: make sure the code below actually writes 4 bytes in the correct order
+            bts = pack("<I", EX_MEM.b)
+            memory.write(bts)
+        elif isinstance(instr is add or instr, addi):
+            MEM_WB.aluout = EX_MEM.aluout
+        else:
+            pass
+        MEM_WB.instr = instr
+        # ----WB
+        instr = MEM_WB.instr
+        if   isinstance(instr, add):
+            regs[instr.rd] = MEM_WB.aluout
+        elif isinstance(instr, addi):
+            regs[instr.rt] = MEM_WB.aluout
+        elif isinstance(instr, lw):
+            regs[instr.rt] = MEM_WB.lmd
+        elif isinstance(instr, hlt):
+            print "breaking"
+            break # todo: should this be somewhere else?
+        else:
+            pass
+
+    if DEBUG:
+        # print registers
+        i = 0
+        for r in regs:
+            print "%s: %s" % (i, hex(r))
+            i += 1
+        # print memory
+        hexdump(memory)
 
 def hexdump(progfile):
     """ Dump the file in hex format """
