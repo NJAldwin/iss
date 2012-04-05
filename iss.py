@@ -44,34 +44,50 @@ class instruction(object):
 class add(instruction):
     def __init__(self, instr):
         super(add, self).__init__(instr)
+    def __str__(self):
+        return "add $%s, $%s, $%s" % (self.rd, self.rs, self.rt)
 
 class addi(instruction):
     def __init__(self, instr):
         super(addi, self).__init__(instr)
+    def __str__(self):
+        return "addi $%s, $%s, %s" % (self.rt, self.rs, self.imm)
 
 class beq(instruction):
     def __init__(self, instr):
         super(beq, self).__init__(instr)
+    def __str__(self):
+        return "beq $%s, $%s, %s" % (self.rs, self.rt, self.imm)
 
 class lw(instruction):
     def __init__(self, instr):
         super(lw, self).__init__(instr)
+    def __str__(self):
+        return "lw $%s, %s($%s)" % (self.rt, self.imm, self.rs)
 
 class sw(instruction):
     def __init__(self, instr):
         super(sw, self).__init__(instr)
+    def __str__(self):
+        return "sw $%s, %s($%s)" % (self.rt, self.imm, self.rs)
 
 class j(instruction):
     def __init__(self, instr):
         super(j, self).__init__(instr)
+    def __str__(self):
+        return "j %s" % (self.target - (CODE >> 2))
 
 class hlt(instruction):
     def __init__(self, instr):
         super(hlt, self).__init__(instr)
+    def __str__(self):
+        return "hlt"
 
 class nop(instruction):
     def __init__(self, instr):
         super(nop, self).__init__(instr)
+    def __str__(self):
+        return "noop"
 
 # Structure for pipeline stages
 
@@ -152,36 +168,62 @@ def main():
 
     progfile.close()
 
+    # dump decompilation (only instructions)
+    f = open("src.s", "w")
+    f.write(decompile(instrs))
+    f.close()
+
+    # reset pipeline registers
+    IF_ID.npc = 0
+
     # run simulator
     while True:
-        # ----IF
-        if isinstance(EX_MEM.instr, beq) and EX_MEM.cond == True:
-            print "branching to %s" % EX_MEM.aluout
-            pc = EX_MEM.aluout
-        elif isinstance(EX_MEM.instr, j) and EX_MEM.jmp == True:
-            print "jumping to %s" % EX_MEM.jmpaddr
-            pc = EX_MEM.jmpaddr
+        # clock cycle
+        print "-----clock-----"
+        
+        # ----WB
+        print "-wb-"
+        instr = MEM_WB.instr
+        if   isinstance(instr, add):
+            regs[instr.rd] = MEM_WB.aluout
+        elif isinstance(instr, addi):
+            regs[instr.rt] = MEM_WB.aluout
+        elif isinstance(instr, lw):
+            regs[instr.rt] = MEM_WB.lmd
+        elif isinstance(instr, hlt):
+            print "breaking"
+            break # todo: should this be somewhere else?
         else:
-            pc = pc + 1
-        instr = instrs[pc]
-        #print "load %s" % instr.__class__.__name__
-        IF_ID.instr = instr
-        IF_ID.npc = pc + 1
-        # ----ID
-        instr = IF_ID.instr
-        ID_EX.instr = instr
-        ID_EX.npc = IF_ID.npc
-        ID_EX.a = regs[instr.rs]
-        ID_EX.b = regs[instr.rt]
-        ID_EX.imm = instr.imm # todo: sign extend?
+            pass
+        # ----MEM
+        print "-mem-"
+        instr = EX_MEM.instr
+        if   isinstance(instr, lw):
+            memory.seek(EX_MEM.aluout)
+            # todo: make sure the below code actually reads 4 bytes
+            print "load at %s" % hex(EX_MEM.aluout)
+            rd = memory.read(4)
+            MEM_WB.lmd = unpack("<I", rd)[0]
+        elif isinstance(instr, sw):
+            memory.seek(EX_MEM.aluout)
+            print "write %s at %s" % (EX_MEM.b, hex(EX_MEM.aluout))
+            # todo: make sure the code below actually writes 4 bytes in the correct order
+            bts = pack("<I", EX_MEM.b)
+            memory.write(bts)
+        elif isinstance(instr is add or instr, addi):
+            MEM_WB.aluout = EX_MEM.aluout
+        else:
+            pass
+        MEM_WB.instr = instr
         # ----EX
+        print "-ex-"
         instr = ID_EX.instr
         if   isinstance(instr, add):
             EX_MEM.aluout = ID_EX.a + ID_EX.b
         elif isinstance(instr, addi):
             EX_MEM.aluout = ID_EX.a + ID_EX.imm
         elif isinstance(instr, beq):
-            print "BRANCH! %s if %s=%s" % (ID_EX.imm, ID_EX.a, ID_EX.b)
+            print "BRANCH! %s if %s=%s" % (ID_EX.npc + ID_EX.imm, ID_EX.a, ID_EX.b)
             EX_MEM.aluout = ID_EX.npc + ID_EX.imm
             EX_MEM.cond = (ID_EX.a == ID_EX.b)
         elif isinstance(instr, j):
@@ -202,47 +244,31 @@ def main():
             pass
             
         EX_MEM.instr = instr
-        # ----MEM
-        instr = EX_MEM.instr
-        if   isinstance(instr, lw):
-            memory.seek(EX_MEM.aluout)
-            # todo: make sure the below code actually reads 4 bytes
-            print "load at %s" % hex(EX_MEM.aluout)
-            rd = memory.read(4)
-            MEM_WB.lmd = unpack("<I", rd)[0]
-        elif isinstance(instr, sw):
-            memory.seek(EX_MEM.aluout)
-            print "write %s at %s" % (EX_MEM.b, hex(EX_MEM.aluout))
-            # todo: make sure the code below actually writes 4 bytes in the correct order
-            bts = pack("<I", EX_MEM.b)
-            memory.write(bts)
-        elif isinstance(instr is add or instr, addi):
-            MEM_WB.aluout = EX_MEM.aluout
+        # ----ID
+        print "-id-"
+        instr = IF_ID.instr
+        ID_EX.instr = instr
+        ID_EX.npc = IF_ID.npc
+        ID_EX.a = regs[instr.rs]
+        ID_EX.b = regs[instr.rt]
+        ID_EX.imm = instr.imm # todo: sign extend?
+        # ----IF
+        print "-if-"
+        if isinstance(EX_MEM.instr, beq) and EX_MEM.cond == True:
+            print "branching to %s" % EX_MEM.aluout
+            pc = EX_MEM.aluout
+        elif isinstance(EX_MEM.instr, j) and EX_MEM.jmp == True:
+            print "jumping to %s" % EX_MEM.jmpaddr
+            pc = EX_MEM.jmpaddr
         else:
-            pass
-        MEM_WB.instr = instr
-        # ----WB
-        instr = MEM_WB.instr
-        if   isinstance(instr, add):
-            regs[instr.rd] = MEM_WB.aluout
-        elif isinstance(instr, addi):
-            regs[instr.rt] = MEM_WB.aluout
-        elif isinstance(instr, lw):
-            regs[instr.rt] = MEM_WB.lmd
-        elif isinstance(instr, hlt):
-            print "breaking"
-            break # todo: should this be somewhere else?
-        else:
-            pass
+            pc = pc + 1
+        instr = instrs[pc]
+        print "instr %s: %s" % (pc, instr)
+        IF_ID.instr = instr
+        IF_ID.npc = pc + 1
 
     if DEBUG:
-        # print registers
-        i = 0
-        for r in regs:
-            print "%s: %s" % (i, hex(r))
-            i += 1
-        # print memory
-        hexdump(memory)
+        print_reg_and_mem(regs, memory)
 
 def hexdump(progfile):
     """ Dump the file in hex format """
@@ -255,6 +281,20 @@ def hexdump(progfile):
             break
         fullbytes = unpack("<cccccccccccccccc", bytes)
         print (hex(pos)[2:][:-1]).zfill(8) + '  ' + ' '.join(map(lambda b: binascii.hexlify(b), fullbytes))
+
+def decompile(instrs):
+    """ Output pseudo source code """
+    return "# for debug use only!\n" + "\n".join("%s: %s" % (i, str(instrs[i])) for i in range(0,len(instrs)))
+        
+def print_reg_and_mem(regs, memory):
+    """ Print the registers and memory dump """
+    # print registers
+    i = 0
+    for r in regs:
+        print "%s: %s" % (i, hex(r))
+        i += 1
+    # print memory
+    hexdump(memory)
 
 if __name__ == '__main__':
     main()
