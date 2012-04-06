@@ -27,7 +27,7 @@ SW   =  0b101011
 HLT  =  0b111111
 
 # Debug Info
-DEBUG = False
+DEBUG = True
 
 # Instructions
 class instruction(object):
@@ -192,7 +192,7 @@ def main():
             regs[instr.rt] = MEM_WB.lmd
         elif isinstance(instr, hlt):
             print "breaking"
-            break # todo: should this be somewhere else?
+            break # todo: should this be somewhere else?  EC: i think this is right
         else:
             pass
         # ----MEM
@@ -222,19 +222,6 @@ def main():
             EX_MEM.aluout = ID_EX.a + ID_EX.b
         elif isinstance(instr, addi):
             EX_MEM.aluout = ID_EX.a + ID_EX.imm
-        elif isinstance(instr, beq):
-            print "BRANCH! %s if %s=%s" % (ID_EX.npc + ID_EX.imm, ID_EX.a, ID_EX.b)
-            EX_MEM.aluout = ID_EX.npc + ID_EX.imm
-            EX_MEM.cond = (ID_EX.a == ID_EX.b)
-        elif isinstance(instr, j):
-            naddr = instr.target - (CODE >> 2)
-            # todo: are we using the right PC here?
-            # todo: is this the right place in the pipeline for a jump?
-            naddr = (pc & 0xf0000000) | naddr
-            print "JUMP! %s" % hex(naddr)
-            # todo: is this the right way to jump?
-            EX_MEM.jmp = True
-            EX_MEM.jmpaddr = naddr
         elif isinstance(instr is lw or instr, sw):
             EX_MEM.aluout = ID_EX.a + ID_EX.imm
             EX_MEM.b = ID_EX.b
@@ -252,20 +239,38 @@ def main():
         ID_EX.a = regs[instr.rs]
         ID_EX.b = regs[instr.rt]
         ID_EX.imm = instr.imm # todo: sign extend?
+        
+        if isinstance(instr, beq):
+            print "BRANCH! %s if %s=%s" % (ID_EX.npc + ID_EX.imm, ID_EX.a, ID_EX.b)
+            ID_EX.aluout = ID_EX.npc + ID_EX.imm
+            ID_EX.cond = (ID_EX.a == ID_EX.b)
+        elif isinstance(instr, j):
+            naddr = instr.target - (CODE >> 2)
+            # todo: are we using the right PC here?
+            # todo: is this the right place in the pipeline for a jump?
+            naddr = (pc & 0xf0000000) | naddr
+            print "JUMP! %s" % hex(naddr)
+            # todo: is this the right way to jump?
+            ID_EX.jmp = True
+            ID_EX.jmpaddr = naddr
+
         # ----IF
         print "-if-"
-        if isinstance(EX_MEM.instr, beq) and EX_MEM.cond == True:
-            print "branching to %s" % EX_MEM.aluout
-            pc = EX_MEM.aluout
-        elif isinstance(EX_MEM.instr, j) and EX_MEM.jmp == True:
-            print "jumping to %s" % EX_MEM.jmpaddr
-            pc = EX_MEM.jmpaddr
+        if isinstance(ID_EX.instr, beq) and ID_EX.cond == True:
+            print "branching to %s" % ID_EX.aluout
+            pc = ID_EX.aluout
+        elif isinstance(ID_EX.instr, j) and ID_EX.jmp == True:
+            print "jumping to %s" % ID_EX.jmpaddr
+            pc = ID_EX.jmpaddr
         else:
             pc = pc + 1
         instr = instrs[pc]
         print "instr %s: %s" % (pc, instr)
         IF_ID.instr = instr
         IF_ID.npc = pc + 1
+
+    print ""
+    print ""
 
     if DEBUG:
         print_reg_and_mem(regs, memory)
