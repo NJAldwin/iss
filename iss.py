@@ -214,7 +214,7 @@ def main():
             # todo: make sure the code below actually writes 4 bytes in the correct order
             bts = pack("<I", EX_MEM.b)
             memory.write(bts)
-        elif isinstance(instr is add or instr, addi):
+        elif isinstance(instr, add) or isinstance(instr, addi):
             MEM_WB.aluout = EX_MEM.aluout
         else:
             pass
@@ -226,7 +226,7 @@ def main():
             EX_MEM.aluout = ID_EX.a + ID_EX.b
         elif isinstance(instr, addi):
             EX_MEM.aluout = ID_EX.a + ID_EX.imm
-        elif isinstance(instr is lw or instr, sw):
+        elif isinstance(instr , lw) or isinstance (instr, sw):
             EX_MEM.aluout = ID_EX.a + ID_EX.imm
             EX_MEM.b = ID_EX.b
         elif isinstance(instr, hlt):
