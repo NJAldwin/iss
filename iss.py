@@ -208,6 +208,7 @@ def main():
             printifd("load at %s" % hex(EX_MEM.aluout))
             rd = memory.read(4)
             MEM_WB.lmd = unpack("<I", rd)[0]
+            # TODO: add m-x hazard/forwarding here
         elif isinstance(instr, sw):
             memory.seek(EX_MEM.aluout)
             printifd("write %s at %s" % (EX_MEM.b, hex(EX_MEM.aluout)))
@@ -216,6 +217,11 @@ def main():
             memory.write(bts)
         elif isinstance(instr, add) or isinstance(instr, addi):
             MEM_WB.aluout = EX_MEM.aluout
+            # TODO: add X-X hazard stuff here
+            if instr.rd != 0 and instr.rd == ID_EX.instr.rs:
+                ID_EX.a = EX_MEM.aluout
+            if instr.rd != 0 and instr.rd == ID_EX.instr.rt:
+                ID_EX.b = EX_MEM.aluout
         else:
             pass
         MEM_WB.instr = instr
