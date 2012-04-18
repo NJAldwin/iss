@@ -207,6 +207,9 @@ def main():
             break # todo: should this be somewhere else?  EC: i think this is right
         else:
             pass
+        if not isinstance(instr, nop):
+            # count all non-nop instructions
+            ninstr += 1
         # ----MEM
         printifd("-mem-")
         instr = EX_MEM.instr
@@ -251,6 +254,17 @@ def main():
         # ----ID
         printifd("-id-")
         instr = IF_ID.instr
+
+        if not isinstance(instr, j) and isinstance(EX_MEM.instr, lw):
+            # possible load-use hazard
+            if instr.rs == EX_MEM.instr.rs or \
+                    ((isinstance(instr, sw) or \
+                      isinstance(instr, beq) or \
+                      isinstance(instr, add)) and \
+                    instr.rt == EX_MEM.instr.rt):
+                ID_EX.instr = nop(NOP)
+                continue
+
         ID_EX.instr = instr
         ID_EX.npc = IF_ID.npc
         ID_EX.a = regs[instr.rs]
@@ -291,9 +305,6 @@ def main():
         else:
             instr = instrs[pc]
             IF_ID.npc = pc + 1
-        if not isinstance(instr, nop):
-            # TODO: should this include noops?
-            ninstr += 1
         printifd("instr %s: %s" % (pc, instr))
         IF_ID.instr = instr
 
