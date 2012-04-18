@@ -27,7 +27,7 @@ SW   =  0b101011
 HLT  =  0b111111
 
 # Debug Info
-DEBUG = True
+DEBUG = False
 
 # Instructions
 class instruction(object):
@@ -176,13 +176,17 @@ def main():
     # reset pipeline registers
     IF_ID.npc = 0
 
+    cycles = 0
+    ninstr = 0
+
     # run simulator
     while True:
         # clock cycle
-        print "-----clock-----"
+        printifd("-----clock-----")
+        cycles += 1
         
         # ----WB
-        print "-wb-"
+        printifd("-wb-")
         instr = MEM_WB.instr
         if   isinstance(instr, add):
             regs[instr.rd] = MEM_WB.aluout
@@ -191,22 +195,22 @@ def main():
         elif isinstance(instr, lw):
             regs[instr.rt] = MEM_WB.lmd
         elif isinstance(instr, hlt):
-            print "breaking"
+            printifd("breaking")
             break # todo: should this be somewhere else?  EC: i think this is right
         else:
             pass
         # ----MEM
-        print "-mem-"
+        printifd("-mem-")
         instr = EX_MEM.instr
         if   isinstance(instr, lw):
             memory.seek(EX_MEM.aluout)
             # todo: make sure the below code actually reads 4 bytes
-            print "load at %s" % hex(EX_MEM.aluout)
+            printifd("load at %s" % hex(EX_MEM.aluout))
             rd = memory.read(4)
             MEM_WB.lmd = unpack("<I", rd)[0]
         elif isinstance(instr, sw):
             memory.seek(EX_MEM.aluout)
-            print "write %s at %s" % (EX_MEM.b, hex(EX_MEM.aluout))
+            printifd("write %s at %s" % (EX_MEM.b, hex(EX_MEM.aluout)))
             # todo: make sure the code below actually writes 4 bytes in the correct order
             bts = pack("<I", EX_MEM.b)
             memory.write(bts)
@@ -216,7 +220,7 @@ def main():
             pass
         MEM_WB.instr = instr
         # ----EX
-        print "-ex-"
+        printifd("-ex-")
         instr = ID_EX.instr
         if   isinstance(instr, add):
             EX_MEM.aluout = ID_EX.a + ID_EX.b
@@ -232,7 +236,7 @@ def main():
             
         EX_MEM.instr = instr
         # ----ID
-        print "-id-"
+        printifd("-id-")
         instr = IF_ID.instr
         ID_EX.instr = instr
         ID_EX.npc = IF_ID.npc
@@ -241,7 +245,7 @@ def main():
         ID_EX.imm = instr.imm # todo: sign extend?
         
         if isinstance(instr, beq):
-            print "BRANCH! %s if %s=%s" % (ID_EX.npc + ID_EX.imm, ID_EX.a, ID_EX.b)
+            printifd("BRANCH! %s if %s=%s" % (ID_EX.npc + ID_EX.imm, ID_EX.a, ID_EX.b))
             ID_EX.aluout = ID_EX.npc + ID_EX.imm
             ID_EX.cond = (ID_EX.a == ID_EX.b)
         elif isinstance(instr, j):
@@ -249,31 +253,41 @@ def main():
             # todo: are we using the right PC here?
             # todo: is this the right place in the pipeline for a jump?
             naddr = (pc & 0xf0000000) | naddr
-            print "JUMP! %s" % hex(naddr)
+            printifd("JUMP! %s" % hex(naddr))
             # todo: is this the right way to jump?
             ID_EX.jmp = True
             ID_EX.jmpaddr = naddr
 
         # ----IF
-        print "-if-"
+        printifd("-if-")
         if isinstance(ID_EX.instr, beq) and ID_EX.cond == True:
-            print "branching to %s" % ID_EX.aluout
+            printifd("branching to %s" % ID_EX.aluout)
             pc = ID_EX.aluout
         elif isinstance(ID_EX.instr, j) and ID_EX.jmp == True:
-            print "jumping to %s" % ID_EX.jmpaddr
+            printifd("jumping to %s" % ID_EX.jmpaddr)
             pc = ID_EX.jmpaddr
         else:
             pc = pc + 1
         instr = instrs[pc]
-        print "instr %s: %s" % (pc, instr)
+        if not isinstance(instr, nop):
+            # TODO: should this include noops?
+            ninstr += 1
+        printifd("instr %s: %s" % (pc, instr))
         IF_ID.instr = instr
         IF_ID.npc = pc + 1
 
-    print ""
-    print ""
-
     if DEBUG:
-        print_reg_and_mem(regs, memory)
+        print
+        print
+        hexdump(memory)
+        print
+
+    # final output
+    print "-"*35 + "Statistics" + "-"*35
+    print "Total # of cycles: %s" % cycles
+    print "Total # of instructions: %s" % ninstr
+    print "CPI: %s" % (float(cycles)/ninstr)
+    print_regs(regs)
 
 def hexdump(progfile):
     """ Dump the file in hex format """
@@ -285,21 +299,25 @@ def hexdump(progfile):
         if bytes == '':
             break
         fullbytes = unpack("<cccccccccccccccc", bytes)
-        print (hex(pos)[2:][:-1]).zfill(8) + '  ' + ' '.join(map(lambda b: binascii.hexlify(b), fullbytes))
+        print "%08X" % pos + '  ' + ' '.join(map(lambda b: binascii.hexlify(b), fullbytes))
 
 def decompile(instrs):
     """ Output pseudo source code """
     return "# for debug use only!\n" + "\n".join("%s: %s" % (i, str(instrs[i])) for i in range(0,len(instrs)))
         
-def print_reg_and_mem(regs, memory):
-    """ Print the registers and memory dump """
-    # print registers
-    i = 0
-    for r in regs:
-        print "%s: %s" % (i, hex(r))
-        i += 1
-    # print memory
-    hexdump(memory)
+def print_regs(regs):
+    """ Output values for the registers """
+    def fmtreg(n):
+        return "R%s: 0x%08X" % (n, regs[n])
+    print "Register file contents:"
+    print
+    for r in range(0, len(regs), 2):
+        print "%s %s" % (fmtreg(r), fmtreg(r+1))
+
+def printifd(s):
+    """ Prints the string if DEBUG is True """
+    if DEBUG:
+        print s
 
 if __name__ == '__main__':
     main()
