@@ -93,7 +93,7 @@ class nop(instruction):
 
 class pipeline_register:
     def __init__(self, **kwds):
-        self.instr = nop(0) # all pipeline registers store an instruction
+        self.instr = nop(NOP) # all pipeline registers store an instruction
     	self.__dict__.update(kwds)
 
 
@@ -179,6 +179,9 @@ def main():
     cycles = 0
     ninstr = 0
 
+    # flag
+    squash_next = False
+
     # run simulator
     while True:
         # clock cycle
@@ -258,6 +261,10 @@ def main():
             printifd("BRANCH! %s if %s=%s" % (ID_EX.npc + ID_EX.imm, ID_EX.a, ID_EX.b))
             ID_EX.aluout = ID_EX.npc + ID_EX.imm
             ID_EX.cond = (ID_EX.a == ID_EX.b)
+            if ID_EX.cond:
+                printifd("branching to %s" % ID_EX.aluout)
+                pc = ID_EX.aluout
+                squash_next = True
         elif isinstance(instr, j):
             naddr = instr.target - (CODE >> 2)
             # todo: are we using the right PC here?
@@ -267,24 +274,28 @@ def main():
             # todo: is this the right way to jump?
             ID_EX.jmp = True
             ID_EX.jmpaddr = naddr
+            printifd("jumping to %s" % ID_EX.jmpaddr)
+            pc = ID_EX.jmpaddr
+            squash_next = True
+        else:
+            squash_next = False
+
+        if not squash_next:
+            pc = ID_EX.npc
 
         # ----IF
         printifd("-if-")
-        if isinstance(ID_EX.instr, beq) and ID_EX.cond == True:
-            printifd("branching to %s" % ID_EX.aluout)
-            pc = ID_EX.aluout
-        elif isinstance(ID_EX.instr, j) and ID_EX.jmp == True:
-            printifd("jumping to %s" % ID_EX.jmpaddr)
-            pc = ID_EX.jmpaddr
+        if squash_next:
+            instr = nop(NOP)
+            IF_ID.npc = pc
         else:
-            pc = pc + 1
-        instr = instrs[pc]
+            instr = instrs[pc]
+            IF_ID.npc = pc + 1
         if not isinstance(instr, nop):
             # TODO: should this include noops?
             ninstr += 1
         printifd("instr %s: %s" % (pc, instr))
         IF_ID.instr = instr
-        IF_ID.npc = pc + 1
 
     if DEBUG:
         print
