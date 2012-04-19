@@ -20,9 +20,9 @@ Notes
 Our software relies on the Python standard library.
 
 To debug the program (or for a detailed progression of data flowing through
-the pipeline, set the value of the variable _DEBUG_ to _True_ on line 30.
+the pipeline), set the value of the variable _DEBUG_ to _True_ on line 30.
 
-To debug the programm in a steps (return between each cycle), set the value
-of _STEP_ to _True_ on line 34. 
+To debug the program step-by-step (`[return]` between each cycle), set the value
+of _STEP_ to _True_ on line 34 (while in _DEBUG_ mode). 
 
 Please view _report.md_ for more detailed information on our project.
