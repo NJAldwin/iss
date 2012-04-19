@@ -4,13 +4,13 @@ Final Project Report
 Eric Chin & Nick Aldwin
 
 1. Design
-   a. Data Structures
-   b. Pipelining
-   c. Hazards
+    1. Data Structures
+    2. Pipelining
+    3. Hazards
 2. Development
-   a. Initial Data Path
-   b. Pipelining
-   c. Forwarding
+    1. Initial Data Path
+    2. Pipelining
+    3. Forwarding
 3. Results
 
 
