@@ -29,6 +29,10 @@ HLT  =  0b111111
 # Debug Info
 DEBUG = False
 
+# Step by step
+# (if enabled, press [ENTER] to step a cycle)
+STEP = False
+
 # Instructions
 class instruction(object):
     def __init__(self, instr):
@@ -132,6 +136,10 @@ def main():
     EX_MEM = pipeline_register()
     MEM_WB = pipeline_register()
 
+    # be nice for forwarding
+    EX_MEM.aluout = 0
+    MEM_WB.aluout = 0
+
     # read memory in chunks of 16 bytes
     while progfile.tell() < CODE:
         memory.write(progfile.read(16))
@@ -162,9 +170,9 @@ def main():
         else: # unrecognized instruction
             instrs.append(nop(instr))
 
-    # print hexdump
-    # (will be removed later)
-    #hexdump(progfile)
+    # print initial hexdump
+    if DEBUG:
+        hexdump(progfile)
 
     progfile.close()
 
@@ -191,62 +199,106 @@ def main():
         # ----WB
         printifd("-wb-")
         instr = MEM_WB.instr
+        printifd("instr: %s" % instr)
         if   isinstance(instr, add):
             regs[instr.rd] = MEM_WB.aluout
-        elif isinstance(instr, addi):
+        elif isinstance(instr, addi) or isinstance(instr, lw):
             regs[instr.rt] = MEM_WB.aluout
-        elif isinstance(instr, lw):
-            regs[instr.rt] = MEM_WB.lmd
-            # m-x hazard/forwarding here
-            if instr.rd != 0 and instr.rd == ID_EX.instr.rs:
-                ID_EX.a = MEM_WB.aluout
-            if instr.rd != 0 and instr.rd == ID_EX.instr.rt:
-                ID_EX.b = MEM_WB.aluout
         elif isinstance(instr, hlt):
             printifd("breaking")
-            break # todo: should this be somewhere else?  EC: i think this is right
+            break
         else:
             pass
         if not isinstance(instr, nop):
             # count all non-nop instructions
             ninstr += 1
+        MEM_WB.oldinstr = MEM_WB.instr
+        MEM_WB.oldaluout = MEM_WB.aluout
         # ----MEM
         printifd("-mem-")
         instr = EX_MEM.instr
+        printifd("instr: %s" % instr)
         if   isinstance(instr, lw):
             memory.seek(EX_MEM.aluout)
-            # todo: make sure the below code actually reads 4 bytes
-            printifd("load at %s" % hex(EX_MEM.aluout))
             rd = memory.read(4)
-            MEM_WB.lmd = unpack("<I", rd)[0]
+            MEM_WB.aluout = unpack("<I", rd)[0]
+            printifd("load %s at %s" % (MEM_WB.aluout, hex(EX_MEM.aluout)))
+            MEM_WB.aluout = MEM_WB.aluout
         elif isinstance(instr, sw):
             memory.seek(EX_MEM.aluout)
             printifd("write %s at %s" % (EX_MEM.b, hex(EX_MEM.aluout)))
-            # todo: make sure the code below actually writes 4 bytes in the correct order
             bts = pack("<I", EX_MEM.b)
             memory.write(bts)
-        elif isinstance(instr, add) or isinstance(instr, addi):
-            MEM_WB.aluout = EX_MEM.aluout
-            # X-X hazard stuff here
-            if instr.rd != 0 and instr.rd == ID_EX.instr.rs:
-                ID_EX.a = EX_MEM.aluout
-            if instr.rd != 0 and instr.rd == ID_EX.instr.rt:
-                ID_EX.b = EX_MEM.aluout
         else:
-            pass
+            MEM_WB.aluout = EX_MEM.aluout
+
         MEM_WB.instr = instr
         # ----EX
         printifd("-ex-")
         instr = ID_EX.instr
+        printifd("instr: %s" % instr)
+        
+        # X-X hazard stuff here
+        hazard_target = -1
+        if isinstance(EX_MEM.instr, add):
+            hazard_target = EX_MEM.instr.rd
+        elif isinstance(EX_MEM.instr, addi):
+            hazard_target = EX_MEM.instr.rt
+
+        x_x = False
+
+        if hazard_target > 0:
+            # possible X-X hazard
+            if isinstance(instr, add) or isinstance(instr, addi) or \
+               isinstance(instr, sw) or isinstance(instr, lw):
+                if hazard_target == instr.rs:
+                    ID_EX.a = EX_MEM.aluout
+                    printifd("x-x hazard a")
+                    x_x = True
+            if isinstance(instr, add) or isinstance(instr, sw):
+                if hazard_target == instr.rt:
+                    ID_EX.b = EX_MEM.aluout
+                    printifd("x-x hazard b")
+                    x_x = True
+        
+        # m-x hazard/forwarding here
+        hazard_target = -1
+        if isinstance(MEM_WB.oldinstr, lw) or \
+           isinstance(MEM_WB.oldinstr, add) or \
+           isinstance(MEM_WB.oldinstr, addi):
+            hazard_target = MEM_WB.oldinstr.rt
+
+        m_x = False
+
+        if hazard_target > 0 and not x_x:
+            # possible M-X hazard
+            if isinstance(instr, add) or isinstance(instr, addi) or \
+               isinstance(instr, sw) or isinstance(instr, lw):
+                if hazard_target == instr.rs:
+                    ID_EX.a = MEM_WB.oldaluout
+                    printifd("m-x hazard a")
+                    m_x = True
+            if isinstance(instr, add) or isinstance(instr, sw):
+                if hazard_target == instr.rt:
+                    ID_EX.b = MEM_WB.oldaluout
+                    printifd("m-x hazard b: %s" % MEM_WB.oldaluout)
+                    m_x = True
+
         if   isinstance(instr, add):
             EX_MEM.aluout = ID_EX.a + ID_EX.b
+            EX_MEM.a = ID_EX.a
+            EX_MEM.b = ID_EX.b
         elif isinstance(instr, addi):
             EX_MEM.aluout = ID_EX.a + ID_EX.imm
+            EX_MEM.a = ID_EX.a
+            EX_MEM.imm = ID_EX.imm
         elif isinstance(instr , lw) or isinstance (instr, sw):
             EX_MEM.aluout = ID_EX.a + ID_EX.imm
+            EX_MEM.a = ID_EX.a
+            EX_MEM.imm = ID_EX.imm
             EX_MEM.b = ID_EX.b
         elif isinstance(instr, hlt):
-            pass # todo: halt here?
+            pass 
         else:
             pass
             
@@ -254,14 +306,16 @@ def main():
         # ----ID
         printifd("-id-")
         instr = IF_ID.instr
+        printifd("instr: %s" % instr)
 
         if not isinstance(instr, j) and isinstance(EX_MEM.instr, lw):
             # possible load-use hazard
-            if instr.rs == EX_MEM.instr.rs or \
+            if instr.rs == EX_MEM.instr.rt or \
                     ((isinstance(instr, sw) or \
                       isinstance(instr, beq) or \
                       isinstance(instr, add)) and \
                     instr.rt == EX_MEM.instr.rt):
+                printifd("load-use hazard")
                 ID_EX.instr = nop(NOP)
                 continue
 
@@ -269,7 +323,7 @@ def main():
         ID_EX.npc = IF_ID.npc
         ID_EX.a = regs[instr.rs]
         ID_EX.b = regs[instr.rt]
-        ID_EX.imm = instr.imm # todo: sign extend?
+        ID_EX.imm = instr.imm
         
         if isinstance(instr, beq):
             printifd("BRANCH! %s if %s=%s" % (ID_EX.npc + ID_EX.imm, ID_EX.a, ID_EX.b))
@@ -281,11 +335,8 @@ def main():
                 squash_next = True
         elif isinstance(instr, j):
             naddr = instr.target - (CODE >> 2)
-            # todo: are we using the right PC here?
-            # todo: is this the right place in the pipeline for a jump?
             naddr = (pc & 0xf0000000) | naddr
             printifd("JUMP! %s" % hex(naddr))
-            # todo: is this the right way to jump?
             ID_EX.jmp = True
             ID_EX.jmpaddr = naddr
             printifd("jumping to %s" % ID_EX.jmpaddr)
@@ -300,6 +351,7 @@ def main():
         # ----IF
         printifd("-if-")
         if squash_next:
+            printifd("squashing next")
             instr = nop(NOP)
             IF_ID.npc = pc
         else:
@@ -307,7 +359,12 @@ def main():
             IF_ID.npc = pc + 1
         printifd("instr %s: %s" % (pc, instr))
         IF_ID.instr = instr
-
+        
+        if DEBUG:
+            sys.stdout.flush()
+            if STEP:
+                sys.stdin.readline()
+        
     if DEBUG:
         print
         print
