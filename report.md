@@ -29,6 +29,12 @@ We chose also to represent the six instructions--_add_, _addi_, _beq_, _j_,
 _lw_, and _sw_--with corresponding structures, which we use to store
 individual instructions throughout the pipeline.
 
+Most of our data was stored in Python classes.  Instructions each had their
+own class based on a parent class, which was useful for both instruction
+decoding and debugging.  We stored registers as a simple array of numbers.
+We stored the memory using a special Python class which acts as an in-memory
+file, allowing us easy byte-level access.
+
 
 Pipelining
 ----------
@@ -45,7 +51,9 @@ Likewise, in handling data and control hazards, we found that our pipeline
 design was conducive to implementing hazard handling.  Because of our
 iterative approach, however, we found a caveat: we needed to reverse the
 order of the evaluation of the stages in order to ensure that data required
-to resolve the hazard is available.
+to resolve the hazard is available.  Once we had swapped the order, it was
+relatively simple to ensure the proper data was forwarded when applicable
+using code based on the pseudocode from the book.
 
 
 
