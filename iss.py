@@ -2,8 +2,8 @@
 # coding=utf-8
 
 # Group:    Astronauts  
-# Version:  0.01  
-# Date:     2012-3-20  
+# Version:  1.00
+# Date:     2012-4-18  
 
 # Group Members
 # =============

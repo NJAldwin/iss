@@ -1,6 +1,6 @@
 Group:    Astronauts  
-Version:  0.02  
-Date:     2012-4-5
+Version:  1.00
+Date:     2012-4-18
 
 Group Members
 =============
@@ -17,8 +17,12 @@ Where `<input>` is the filename of the binary program.
 
 Notes
 =====
-Our software relies on the Python standard library
+Our software relies on the Python standard library.
 
-With Professor Fei's approval, we intended to combine parts 2 and 3 of the project, rendering this into a "status" update for Professor Fei.  In doing so, we have already resolved the HLT control hazard, and have begun adding forwarding.
+To debug the program (or for a detailed progression of data flowing through
+the pipeline, set the value of the variable _DEBUG_ to _True_ on line 30.
 
-At present, we have completed the pipelining stage and are presently working through data hazards.
+To debug the programm in a steps (return between each cycle), set the value
+of _STEP_ to _True_ on line 34. 
+
+Please view _report.md_ for more detailed information on our project.
